@@ -1,0 +1,4 @@
+const CACHE="foxchat-v8-001";const ASSETS=["./","./index.html","./styles.css","./app.js","./config.js","./manifest.json","./mascot.png","./icon-192.png","./icon-512.png","./foxchat-orbit.svg"];
+self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
+self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith("foxchat-")&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener("fetch",e=>{if(e.request.method!=="GET"||e.request.url.includes("supabase.co")||e.request.url.includes("cdn.jsdelivr.net"))return;e.respondWith(fetch(e.request).then(r=>{if(r.ok){const cp=r.clone();caches.open(CACHE).then(c=>c.put(e.request,cp))}return r}).catch(()=>caches.match(e.request).then(r=>r||caches.match("./index.html"))))});
