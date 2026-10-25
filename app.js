@@ -31,7 +31,7 @@ function removeProfile(){const id=$("#profileId").value;if(id===state.account.ac
 let sb=null;async function getSB(){if(sb)return sb;const c=window.FOXCHAT_CONFIG||{};if(!window.supabase?.createClient||!c.SUPABASE_URL||!c.SUPABASE_ANON_KEY)return null;sb=window.supabase.createClient(c.SUPABASE_URL,c.SUPABASE_ANON_KEY);return sb}
 function rpcAccount(d){if(Array.isArray(d))d=d[0];if(typeof d==="string")return safeJSON(d,null);return d}
 async function createAccount(n,p){n=n.trim();if(!n)return toast("Enter an account name");if(p.length<8)return toast("Password must be at least 8 characters");const c=await getSB();if(!c)return toast("Supabase is not configured");try{const r=await c.rpc("create_account",{p_account_name:n,p_password:p});if(r.error)throw r.error;const a=rpcAccount(r.data);if(!a?.account_id)throw Error("No account returned");state.account=a;save();load();closeModal("#authModal");renderAll();toast("Account created 🦊");playClick("send")}catch(e){toast(e.message||"Could not create account")}}
-async function loginAccount(n,p){n=n.trim();if(!n||!p)return toast("Enter your account name and password");const c=await getSB();if(!c)return toast("Supabase is not configured");try{const r=await c.rpc("login_account",{p_account_name:n,p_password:p});if(r.error)throw r.error;const a=rpcAccount(r.data);if(!a?.account_id)throw Error("No account returned");state.account=a;save();load();closeModal("#authModal");renderAll();toast("Signed in") }catch(e){toast(e.message||"Invalid account name or password")}}
+async function loginAccount(n,p){n=n.trim();if(!n||!p)return toast("Enter your account name and password");const c=await getSB();if(!c)return toast("Supabase is not configured");try{const r=await c.rpc("login_account",{p_account_name:n,p_password:p});if(r.error)throw r.error;const a=rpcAccount(r.data);if(!a?.account_id)throw Error("Invalid account name or password");state.account=a;load();closeModal("#authModal");renderAll();toast("Welcome back 🦊");playClick("send")}catch(e){toast(e.message||"Invalid account name or password")}}
 function logout(){state.account=null;state.active=null;localStorage.removeItem(LS.account);load();closeModal("#settingsModal");openModal("#authModal");renderAll()}
 function addConversation(id,name){if(!state.conversations.some(c=>c.id===id))state.conversations.unshift({id,name,updated:Date.now(),unread:0,pinned:false,muted:false});else state.conversations=state.conversations.map(c=>c.id===id?{...c,name:name||c.name,updated:Date.now(),unread:0}:c);save()}
 async function newChat(){const raw=$("#newChatInput").value.trim();if(!raw)return toast("Enter an account name");const c=await getSB();if(!c)return toast("Supabase is not configured");try{const r=await c.rpc("find_account_by_name",{p_name:raw});if(r.error)throw r.error;const a=rpcAccount(r.data);if(!a?.account_id)throw Error("Account not found");if(a.account_id===state.account.account_id)throw Error("You cannot chat with yourself");addConversation(a.account_id,a.account_name);state.active=a.account_id;$("#newChatInput").value="";closeModal("#newChatModal");closeMobile();renderAll()}catch(e){toast(e.message||"Account not found")}}
@@ -47,12 +47,170 @@ function renderSearch(){renderSidebar();renderChat()}
 function archive(){const c=state.conversations.find(x=>x.id===state.active);if(c)c.archived=true;state.active=null;save();closeModal("#moreModal");renderAll();toast("Conversation archived")}
 function deleteChat(){state.messages=state.messages.filter(m=>m.peerId!==state.active);state.conversations=state.conversations.filter(c=>c.id!==state.active);state.active=null;save();closeModal("#moreModal");renderAll();toast("Local conversation deleted")}
 function copyText(t){navigator.clipboard?.writeText(t).then(()=>toast("Copied"),()=>toast("Copy unavailable"))}
-function wire(){const on=(id,fn)=>$("#"+id)?.addEventListener("click",e=>{playClick();fn(e)});on("newChatBtn",()=>state.account?openModal("#newChatModal"):toast("Sign in first"));on("newChatBtn2",()=>openModal("#newChatModal"));on("settingsBtn",()=>{renderSettings();openModal("#settingsModal")});on("mobileMenuBtn",()=>$("#sidebar").classList.toggle("open"));on("openChatBtn",newChat);on("loginBtn",()=>loginAccount($("#authName").value,$("#authPassword").value));on("signupBtn",()=>createAccount($("#authName").value,$("#authPassword").value));on("authLoginTab",()=>setAuth("login"));on("authCreateTab",()=>setAuth("create"));on("saveProfile",saveProfile);on("removeProfile",removeProfile);on("logoutBtn",logout);on("saveQuickBtn",saveQuick);on("imageButton",()=>$("#imageInput").click());on("sendButton",()=>{const t=$("#composer").value;if(t.trim()){$("#composer").value="";sendText(t)}});on("chatSearchBtn",()=>{$("#searchBar").classList.remove("hidden");$("#messageSearch").focus()});on("closeSearch",()=>{$("#searchBar").classList.add("hidden");state.messageSearch="";renderChat()});on("jumpLatest",()=>{$("#messageList").scrollTop=$("#messageList").scrollHeight});on("tipsBtn",()=>openModal("#tipsModal"));on("chatMoreBtn",()=>{if(!state.active)return;$("#moreTitle").textContent=displayName(state.active);openModal("#moreModal")});on("pinChatBtn",()=>{const c=state.conversations.find(x=>x.id===state.active);if(c)c.pinned=!c.pinned;save();closeModal("#moreModal");renderAll()});on("muteChatBtn",()=>{const c=state.conversations.find(x=>x.id===state.active);if(c)c.muted=!c.muted;save();closeModal("#moreModal");renderAll()});on("archiveChatBtn",archive);on("deleteChatBtn",deleteChat);on("soundToggle",()=>{state.prefs.sound=!state.prefs.sound;save();renderSettings()});on("motionToggle",()=>{state.prefs.motion=!state.prefs.motion;document.body.classList.toggle("reduced",state.prefs.motion);save();renderSettings()});on("clearLocalBtn",()=>{if(confirm("Clear all local messages for this account?")){state.messages=[];save();renderAll();toast("Local messages cleared")}});on("closeLightbox",()=>$("#imageLightbox").classList.remove("show"));
-$(document).addEventListener("click",e=>{const q=e.target.closest("[data-quick]");if(q){sendText(q.dataset.quick);return}const ch=e.target.closest("[data-chat]");if(ch){state.active=ch.dataset.chat;const c=state.conversations.find(x=>x.id===state.active);if(c)c.unread=0;save();closeMobile();renderAll();return}const p=e.target.closest("[data-pfp]");if(p){openProfile(p.dataset.pfp);return}const cl=e.target.closest("[data-close]");if(cl){closeModal("#"+cl.closest(".modal").id);return}const im=e.target.closest("[data-image]");if(im){$("#lightboxImage").src=im.dataset.image;$("#imageLightbox").classList.add("show");return}const cp=e.target.closest("[data-copy]");if(cp){copyText(cp.dataset.copy);return}const dl=e.target.closest("[data-delete]");if(dl){state.messages=state.messages.filter(m=>m.id!==dl.dataset.delete);save();renderChat();return}const re=e.target.closest("[data-react]");if(re){const row=e.target.closest("[data-mid]");const m=state.messages.find(x=>x.id===row?.dataset.mid);if(m){m.reaction=m.reaction?"":re.dataset.react;save();renderChat()}return}if(e.target.id==="authModal"||e.target.id==="newChatModal"||e.target.id==="settingsModal"||e.target.id==="profileModal"||e.target.id==="moreModal"||e.target.id==="tipsModal")e.target.classList.remove("show")});
-$(document).addEventListener("change",e=>{if(e.target.id==="imageInput"){const f=e.target.files?.[0];if(f)sendImage(f);e.target.value=""}});
-$(document).addEventListener("input",e=>{if(e.target.id==="conversationSearch"){state.search=e.target.value;renderSidebar()}if(e.target.id==="messageSearch"){state.messageSearch=e.target.value;renderChat()}if(e.target.id==="composer"){e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,150)+"px"}});
-$(document).addEventListener("keydown",e=>{if((e.target.id==="authName"||e.target.id==="authPassword")&&e.key==="Enter"){e.preventDefault();$("#signupBtn").classList.contains("hidden")?loginAccount($("#authName").value,$("#authPassword").value):createAccount($("#authName").value,$("#authPassword").value)}if(e.target.id==="newChatInput"&&e.key==="Enter"){e.preventDefault();newChat()}if(e.target.id==="composer"&&e.key==="Enter"&&!e.shiftKey){e.preventDefault();const t=e.target.value;e.target.value="";e.target.style.height="auto";if(t.trim())sendText(t)}if(e.key==="Escape"){$$('.modal.show').forEach(m=>m.classList.remove("show"));$("#imageLightbox")?.classList.remove("show")}});
+
+function wire(){
+  const on=(id,fn)=>$("#"+id)?.addEventListener("click",e=>{playClick();fn(e)});
+
+  on("newChatBtn",()=>state.account?openModal("#newChatModal"):toast("Sign in first"));
+  on("newChatBtn2",()=>openModal("#newChatModal"));
+  on("settingsBtn",()=>{renderSettings();openModal("#settingsModal")});
+  on("mobileMenuBtn",()=>$("#sidebar").classList.toggle("open"));
+  on("openChatBtn",newChat);
+  on("loginBtn",()=>loginAccount($("#authName").value,$("#authPassword").value));
+  on("signupBtn",()=>createAccount($("#authName").value,$("#authPassword").value));
+  on("authLoginTab",()=>setAuth("login"));
+  on("authCreateTab",()=>setAuth("create"));
+  on("saveProfile",saveProfile);
+  on("removeProfile",removeProfile);
+  on("logoutBtn",logout);
+  on("saveQuickBtn",saveQuick);
+  on("imageButton",()=>$("#imageInput").click());
+  on("sendButton",()=>{const t=$("#composer").value;if(t.trim()){$("#composer").value="";sendText(t)}});
+  on("chatSearchBtn",()=>{$("#searchBar").classList.remove("hidden");$("#messageSearch").focus()});
+  on("closeSearch",()=>{$("#searchBar").classList.add("hidden");state.messageSearch="";renderChat()});
+  on("jumpLatest",()=>{$("#messageList").scrollTop=$("#messageList").scrollHeight});
+  on("tipsBtn",()=>openModal("#tipsModal"));
+  on("chatMoreBtn",()=>{if(!state.active)return;$("#moreTitle").textContent=displayName(state.active);openModal("#moreModal")});
+  on("pinChatBtn",()=>{const c=state.conversations.find(x=>x.id===state.active);if(c)c.pinned=!c.pinned;save();closeModal("#moreModal");renderAll()});
+  on("muteChatBtn",()=>{const c=state.conversations.find(x=>x.id===state.active);if(c)c.muted=!c.muted;save();closeModal("#moreModal");renderAll()});
+  on("archiveChatBtn",archive);
+  on("deleteChatBtn",deleteChat);
+  on("soundToggle",()=>{state.prefs.sound=!state.prefs.sound;save();renderSettings()});
+  on("motionToggle",()=>{state.prefs.motion=!state.prefs.motion;document.body.classList.toggle("reduced",state.prefs.motion);save();renderSettings()});
+  on("clearLocalBtn",()=>{if(confirm("Clear all local messages for this account?")){state.messages=[];save();renderAll();toast("Local messages cleared")}});
+  on("closeLightbox",()=>$("#imageLightbox").classList.remove("show"));
+
+  // V8 FIX: bind every modal X directly as well as through delegation.
+  // This makes the close controls reliable on touch, mouse, and iOS Safari.
+  $$(".modal-close").forEach(btn=>{
+    btn.addEventListener("click",e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const modal=btn.closest(".modal");
+      if(modal) closeModal("#"+modal.id);
+      playClick();
+    });
+  });
+
+  // V8 FIX: harden the image lightbox close control too.
+  $("#closeLightbox")?.addEventListener("click",e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    $("#imageLightbox")?.classList.remove("show");
+    playClick();
+  });
+
+  $(document).addEventListener("click",e=>{
+    const q=e.target.closest("[data-quick]");
+    if(q){sendText(q.dataset.quick);return}
+
+    const ch=e.target.closest("[data-chat]");
+    if(ch){
+      state.active=ch.dataset.chat;
+      const c=state.conversations.find(x=>x.id===state.active);
+      if(c)c.unread=0;
+      save();
+      closeMobile();
+      renderAll();
+      return
+    }
+
+    const p=e.target.closest("[data-pfp]");
+    if(p){openProfile(p.dataset.pfp);return}
+
+    const cl=e.target.closest("[data-close]");
+    if(cl){
+      const modal=cl.closest(".modal");
+      if(modal)closeModal("#"+modal.id);
+      return
+    }
+
+    const im=e.target.closest("[data-image]");
+    if(im){
+      $("#lightboxImage").src=im.dataset.image;
+      $("#imageLightbox").classList.add("show");
+      return
+    }
+
+    const cp=e.target.closest("[data-copy]");
+    if(cp){copyText(cp.dataset.copy);return}
+
+    const dl=e.target.closest("[data-delete]");
+    if(dl){
+      state.messages=state.messages.filter(m=>m.id!==dl.dataset.delete);
+      save();
+      renderChat();
+      return
+    }
+
+    const re=e.target.closest("[data-react]");
+    if(re){
+      const row=e.target.closest("[data-mid]");
+      const m=state.messages.find(x=>x.id===row?.dataset.mid);
+      if(m){
+        m.reaction=m.reaction?"":re.dataset.react;
+        save();
+        renderChat()
+      }
+      return
+    }
+
+    if(e.target.id==="authModal"||e.target.id==="newChatModal"||e.target.id==="settingsModal"||e.target.id==="profileModal"||e.target.id==="moreModal"||e.target.id==="tipsModal")e.target.classList.remove("show")
+  });
+
+  $(document).addEventListener("change",e=>{
+    if(e.target.id==="imageInput"){
+      const f=e.target.files?.[0];
+      if(f)sendImage(f);
+      e.target.value=""
+    }
+  });
+
+  $(document).addEventListener("input",e=>{
+    if(e.target.id==="conversationSearch"){
+      state.search=e.target.value;
+      renderSidebar()
+    }
+
+    if(e.target.id==="messageSearch"){
+      state.messageSearch=e.target.value;
+      renderChat()
+    }
+
+    if(e.target.id==="composer"){
+      e.target.style.height="auto";
+      e.target.style.height=Math.min(e.target.scrollHeight,150)+"px"
+    }
+  });
+
+  $(document).addEventListener("keydown",e=>{
+    if((e.target.id==="authName"||e.target.id==="authPassword")&&e.key==="Enter"){
+      e.preventDefault();
+      $("#signupBtn").classList.contains("hidden")
+        ?loginAccount($("#authName").value,$("#authPassword").value)
+        :createAccount($("#authName").value,$("#authPassword").value)
+    }
+
+    if(e.target.id==="newChatInput"&&e.key==="Enter"){
+      e.preventDefault();
+      newChat()
+    }
+
+    if(e.target.id==="composer"&&e.key==="Enter"&&!e.shiftKey){
+      e.preventDefault();
+      const t=e.target.value;
+      e.target.value="";
+      e.target.style.height="auto";
+      if(t.trim())sendText(t)
+    }
+
+    if(e.key==="Escape"){
+      $$('.modal.show').forEach(m=>m.classList.remove("show"));
+      $("#imageLightbox")?.classList.remove("show")
+    }
+  });
 }
+
 function registerSW(){navigator.serviceWorker?.register("./sw.js?v=8").catch(console.warn)}
 function boot(){load();wire();setAuth("login");if(state.account)$("#authModal").classList.remove("show");renderAll();registerSW();setInterval(poll,5000);poll()}
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
